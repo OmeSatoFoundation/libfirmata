@@ -98,7 +98,7 @@ N   END_SYSEX (0xF7) (MIDI End of SysEx - EOX)
  * @brief Communication functions implementations.
  * @{
  */
-static void firmata_send_msg(struct firmata_conn *c, const uint8_t *ibuf, size_t len)
+void firmata_send_msg(struct firmata_conn *c, const uint8_t *ibuf, size_t len)
 {
     int written = 0;
 #ifdef FIRMATA_DUMP_MESSAGES
@@ -120,7 +120,7 @@ static void firmata_send_msg(struct firmata_conn *c, const uint8_t *ibuf, size_t
     pthread_mutex_unlock(&c->write_mutex);
 }
 
-static void firmata_send_code(struct firmata_conn *c, uint8_t code)
+void firmata_send_code(struct firmata_conn *c, uint8_t code)
 {
     const uint8_t ibuf[] = { START_SYSEX, code, END_SYSEX };
     firmata_send_msg(c, ibuf, sizeof(ibuf));

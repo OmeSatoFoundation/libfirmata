@@ -102,8 +102,8 @@ static void get_message(int fd, struct firmata_msg *msg)
         ret = read(fd, buf + recvd, msg_len);
         if(ret < 0)
         {
+            if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) return;
             perror("reading");
-            sleep(1);
             continue;
         }
         recvd += ret;
@@ -531,18 +531,18 @@ struct firmata_conn *firmata_open(const char* devname, int baudrate)
         return NULL;
     }
 
-    if((ret = ioctl(c->fd, TIOCMGET, &bits)) < 0)
-    {
-        perror("query serial port signals");
-        goto open_fail;
-    }
+    // if((ret = ioctl(c->fd, TIOCMGET, &bits)) < 0)
+    // {
+    //     perror("query serial port signals");
+    //     goto open_fail;
+    // }
 
-    bits &= ~(TIOCM_DTR | TIOCM_RTS);
-    if((ret = ioctl(c->fd, TIOCMSET, &bits)) < 0)
-    {
-        perror("control serial port signals");
-        goto open_fail;
-    }
+    // bits &= ~(TIOCM_DTR | TIOCM_RTS);
+    // if((ret = ioctl(c->fd, TIOCMSET, &bits)) < 0)
+    // {
+    //     perror("control serial port signals");
+    //     goto open_fail;
+    // }
 
     if((ret = tcgetattr(c->fd, &c->orig_attribs)) < 0)
     {
@@ -551,18 +551,11 @@ struct firmata_conn *firmata_open(const char* devname, int baudrate)
     }
 
     memset(&settings, 0, sizeof(settings));
-    settings.c_iflag = IGNBRK | IGNPAR;
-    settings.c_cflag = CS8 | CREAD | HUPCL | CLOCAL;
-
-    cfsetospeed(&settings, rate_to_constant(baudrate));
-    cfsetispeed(&settings, rate_to_constant(baudrate));
-
-    if(tcsetattr(c->fd, TCSANOW, &settings) < 0)
-    {
-        perror("tcsetattr");
-        goto open_fail;
-    }
-
+    cfmakeraw(&settings);
+    settings.c_cflag |= (CLOCAL | CREAD);
+    settings.c_cflag &= ~HUPCL;          // optional: avoid hangup semantics
+    settings.c_cc[VMIN]  = 1;
+    settings.c_cc[VTIME] = 0;
     if(ioctl(c->fd, TIOCGSERIAL, &kernel_serial_settings) == 0)
     {
         kernel_serial_settings.flags |= ASYNC_LOW_LATENCY;
@@ -575,6 +568,7 @@ struct firmata_conn *firmata_open(const char* devname, int baudrate)
     pthread_mutex_lock(&c->ready_mutex);
 
     pthread_create(&c->thd, NULL, waiter_thread, c);
+    usleep(1500*1000);
 
     ret = ETIMEDOUT;
     retry = 5;
@@ -584,7 +578,7 @@ struct firmata_conn *firmata_open(const char* devname, int baudrate)
         clock_gettime(CLOCK_REALTIME, &ts);
         ts.tv_sec += 1;
         ret = pthread_cond_timedwait(&c->ready_cond, &c->ready_mutex, &ts);
-        if(ret == ETIMEDOUT && retry < 3)
+        if(ret == ETIMEDOUT)
         {
             fprintf(stderr, "Timedout while waiting for response. Retrying another %i time(s)\n", retry);
             retry--;

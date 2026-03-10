@@ -553,4 +553,8 @@ void firmata_set_servo_config(struct firmata_conn *c, uint8_t pin, uint16_t minP
 
 /* @} */
 
+void firmata_send_msg(struct firmata_conn *c, const uint8_t *ibuf, size_t len);
+void firmata_send_code(struct firmata_conn *c, uint8_t code);
+
+
 #endif
