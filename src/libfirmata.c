@@ -102,9 +102,9 @@ static void get_message(int fd, struct firmata_msg *msg)
         ret = read(fd, buf + recvd, msg_len);
         if(ret < 0)
         {
-            if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) return;
+            if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) continue;
             perror("reading");
-            continue;
+            return;
         }
         recvd += ret;
         if(!need_end_sysex)
@@ -123,7 +123,7 @@ static void get_message(int fd, struct firmata_msg *msg)
     {
         printf("[RECV]: ");
         for(int i = 0; i < recvd; i++){
-            printf("%X", ((uint8_t *)msg)[i]);
+            printf("%02X", ((uint8_t *)msg)[i]);
         }
         printf("\n");
     }
@@ -509,7 +509,7 @@ static void* waiter_thread(void * a)
 
 struct firmata_conn *firmata_open(const char* devname, int baudrate)
 {
-    struct termios settings;
+    struct termios settings, settings_verify;
     struct serial_struct kernel_serial_settings;
     struct firmata_conn *c = NULL;
     struct timespec ts;
@@ -560,11 +560,56 @@ struct firmata_conn *firmata_open(const char* devname, int baudrate)
     }
 
     memset(&settings, 0, sizeof(settings));
-    cfmakeraw(&settings);
+    memset(&settings_verify, 0, sizeof(settings_verify));
     settings.c_cflag |= (CLOCAL | CREAD);
     settings.c_cflag &= ~HUPCL;          // optional: avoid hangup semantics
     settings.c_cc[VMIN]  = 1;
     settings.c_cc[VTIME] = 0;
+
+    // Set baud rate
+    cfsetispeed(&settings, rate_to_constant(baudrate));
+    cfsetospeed(&settings, rate_to_constant(baudrate));
+
+    // Set raw mode; ignore special processings by special characters as in terminal.
+    // See "Raw Mode" section in man 3 termios.
+    cfmakeraw(&settings);
+
+    // Apply settings.
+    if (tcsetattr(c->fd, TCSANOW, &settings) != 0){
+        fprintf(stderr, "Failed to apply terminal settings: %d\n", errno);
+        return NULL;
+    }
+
+    // Check if settings are properly applied.
+    if (tcgetattr(c->fd, &settings_verify) != 0){
+        fprintf(stderr, "Failed to get terminal settings: %d\n", errno);
+        return NULL;
+    }
+    if (settings.c_iflag != settings_verify.c_iflag){
+        fprintf(stderr, "Settings c_iflag do not match: %d, %d\n", settings.c_iflag, settings_verify.c_iflag);
+        return NULL;
+    }
+    if (settings.c_oflag != settings_verify.c_oflag){
+        fprintf(stderr, "Settings c_oflag do not match: %d, %d\n", settings.c_oflag, settings_verify.c_oflag);
+        return NULL;
+    }
+    if (settings.c_cflag != settings_verify.c_cflag){
+        fprintf(stderr, "Settings c_cflag do not match: %d, %d\n", settings.c_cflag, settings_verify.c_cflag);
+        return NULL;
+    }
+    if (settings.c_lflag != settings_verify.c_lflag){
+        fprintf(stderr, "Settings c_lflag do not match: %d, %d\n", settings.c_lflag, settings_verify.c_lflag);
+        return NULL;
+    }
+    if (settings.c_cc[VMIN] != settings.c_cc[VMIN]){
+        fprintf(stderr, "c_cc[VMIN] do not match: %d, %d\n", settings.c_cc[VMIN], settings.c_cc[VMIN]);
+        return NULL;
+    }
+    if (settings.c_cc[VTIME] != settings.c_cc[VTIME]){
+        fprintf(stderr, "c_cc[VTIME] do not match: %d, %d\n", settings.c_cc[VTIME], settings.c_cc[VTIME]);
+        return NULL;
+    }
+
     if(ioctl(c->fd, TIOCGSERIAL, &kernel_serial_settings) == 0)
     {
         kernel_serial_settings.flags |= ASYNC_LOW_LATENCY;
@@ -577,7 +622,6 @@ struct firmata_conn *firmata_open(const char* devname, int baudrate)
     pthread_mutex_lock(&c->ready_mutex);
 
     pthread_create(&c->thd, NULL, waiter_thread, c);
-    usleep(1500*1000);
 
     ret = ETIMEDOUT;
     retry = 5;

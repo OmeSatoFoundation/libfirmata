@@ -105,7 +105,7 @@ void firmata_send_msg(struct firmata_conn *c, const uint8_t *ibuf, size_t len)
     int i;
     printf("[SENT]: ");
     for(i=0;i<len;i++)
-        printf("%X", ibuf[i]);
+        printf("%02X", ibuf[i]);
     printf("\n");
 #endif
 
