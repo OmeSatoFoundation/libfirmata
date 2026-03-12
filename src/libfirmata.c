@@ -119,6 +119,15 @@ static void get_message(int fd, struct firmata_msg *msg)
     if(recvd >= (sizeof(*msg)))
         fprintf(stderr, "%s: Message too long\n", __func__);
     msg->size = recvd;
+    #ifdef FIRMATA_DUMP_MESSAGES
+    {
+        printf("[RECV]: ");
+        for(int i = 0; i < recvd; i++){
+            printf("%X", msg[i]);
+        }
+        printf("\n");
+    }
+    #endif
 }
 
 #define COPY_COMMON(src, dst) \
