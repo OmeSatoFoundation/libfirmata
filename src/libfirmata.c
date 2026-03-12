@@ -123,7 +123,7 @@ static void get_message(int fd, struct firmata_msg *msg)
     {
         printf("[RECV]: ");
         for(int i = 0; i < recvd; i++){
-            printf("%X", msg[i]);
+            printf("%X", ((uint8_t *)msg)[i]);
         }
         printf("\n");
     }
