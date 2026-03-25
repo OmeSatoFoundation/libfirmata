@@ -49,8 +49,11 @@
 
 /**
  * @brief Maximum size of incoming messages.
+ * @note The size for rp2040 must be greater than
+ * 56 [pins] \times 11 [sorts of mode] \times 2 [fields per pin] = 1232.
+ * 
  */
-#define MAX_DATA_BYTES          256
+#define MAX_DATA_BYTES          (65535)
 
 /** @} */
 
