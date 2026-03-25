@@ -221,7 +221,7 @@ static inline void msg_to_analog_map(const struct firmata_msg *msg, struct analo
     for(i=0 ; i < MAX_NUM_PINS; i++)
         am->analog_channel[i] = 127;
 
-    for(i=0 ; i<msg->size-1; i++)
+    for(i=0 ; i<msg->size-3; i++)
         am->analog_channel[i] = msg->data[i];
 }
 
