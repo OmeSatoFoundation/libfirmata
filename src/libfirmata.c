@@ -76,6 +76,7 @@ static inline int rate_to_constant(int baudrate) {
 
 static void get_message(int fd, struct firmata_msg *msg)
 {
+    const ssize_t MSG_BUF_SIZE = sizeof(*msg);
     ssize_t recvd = 0;
     int ret;
     int need_end_sysex = 0;
@@ -97,7 +98,7 @@ static void get_message(int fd, struct firmata_msg *msg)
 
     recvd = 1;
 
-    while(recvd < sizeof(*msg) && (need_end_sysex || msg_len > 0))
+    while(recvd < MSG_BUF_SIZE && (need_end_sysex || msg_len > 0))
     {
         ret = read(fd, buf + recvd, msg_len);
         if(ret < 0)
@@ -116,8 +117,8 @@ static void get_message(int fd, struct firmata_msg *msg)
         }
     }
 
-    if(recvd >= (sizeof(*msg)))
-        fprintf(stderr, "%s: Message too long\n", __func__);
+    if(recvd >= MSG_BUF_SIZE)
+        fprintf(stderr, "%s: Message too long: %ld/%ld.\n", __func__, recvd, MSG_BUF_SIZE);
     msg->size = recvd;
     #ifdef FIRMATA_DUMP_MESSAGES
     {
