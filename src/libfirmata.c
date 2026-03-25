@@ -389,18 +389,14 @@ static void process_message(struct firmata_conn *c)
                 int mask;
                 for (mask=1; mask & 0xFF; mask <<= 1, pin++) {
                     pthread_mutex_lock(&c->info_mutex);
-                    if (c->global_data.pin_state[pin].mode == MODE_INPUT) {
+                    uint8_t const mode = c->global_data.pin_state[pin].mode;
+                    if (mode == MODE_INPUT || mode == MODE_PULLUP) {
                         uint32_t val = (port_val & mask) ? 1 : 0;
-                        if (c->global_data.pin_state[pin].value != val)
-                        {
-                            struct pin_state_msg ps;
-                            c->global_data.pin_state[pin].value = val;
-                            ps = c->global_data.pin_state[pin];
-                            pthread_mutex_unlock(&c->info_mutex);
-                            process_callbacks(c, PIN_STATE_RESPONSE, &ps);
-                        }
-                        else
-                            pthread_mutex_unlock(&c->info_mutex);
+                        struct pin_state_msg ps;
+                        c->global_data.pin_state[pin].value = val;
+                        ps = c->global_data.pin_state[pin];
+                        pthread_mutex_unlock(&c->info_mutex);
+                        process_callbacks(c, PIN_STATE_RESPONSE, &ps);
                     }
                     else
                         pthread_mutex_unlock(&c->info_mutex);

@@ -91,7 +91,9 @@
 #define MODE_ONEWIRE  0x07  //!< Onewire mode
 #define MODE_STEPPER  0x08  //!< Stepper mode
 #define MODE_ENCODER  0x09  //!< Encoder mode
-#define MODE_MAX      ( MODE_ENCODER + 1 )  //!< Valid modes limit. Not part of the ABI.
+#define MODE_SERIAL   0x0A
+#define MODE_PULLUP   0x0B
+#define MODE_MAX      ( MODE_PULLUP + 1 )  //!< Valid modes limit. Not part of the ABI.
 
 /** @} */
 
