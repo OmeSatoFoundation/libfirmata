@@ -45,6 +45,8 @@ struct firmata_conn {
     int fd;
     /*! Original termios attribs */
     struct termios orig_attribs;
+    /*! Whether termios setup completed and should be restored on close */
+    int tty_configured;
 
     /*! Reader thread */
     pthread_t thd;

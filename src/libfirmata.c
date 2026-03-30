@@ -504,6 +504,13 @@ static void* waiter_thread(void * a)
     return NULL;
 }
 
+static int skip_tty_setup(void)
+{
+    const char *value = getenv("FIRMATA_SKIP_TTY_SETUP");
+
+    return value && value[0] != '\0' && strcmp(value, "0") != 0;
+}
+
 struct firmata_conn *firmata_open(const char* devname, int baudrate)
 {
     struct termios settings, settings_verify;
@@ -550,69 +557,73 @@ struct firmata_conn *firmata_open(const char* devname, int baudrate)
     //     goto open_fail;
     // }
 
-    if((ret = tcgetattr(c->fd, &c->orig_attribs)) < 0)
+    if(!skip_tty_setup())
     {
-        perror("tcgetattr");
-        goto open_fail;
-    }
+        if((ret = tcgetattr(c->fd, &c->orig_attribs)) < 0)
+        {
+            perror("tcgetattr");
+            goto open_fail;
+        }
 
-    memset(&settings, 0, sizeof(settings));
-    memset(&settings_verify, 0, sizeof(settings_verify));
-    settings.c_cflag |= (CLOCAL | CREAD);
-    settings.c_cflag &= ~HUPCL;          // optional: avoid hangup semantics
-    settings.c_cc[VMIN]  = 1;
-    settings.c_cc[VTIME] = 0;
+        memset(&settings, 0, sizeof(settings));
+        memset(&settings_verify, 0, sizeof(settings_verify));
+        settings.c_cflag |= (CLOCAL | CREAD);
+        settings.c_cflag &= ~HUPCL;          // optional: avoid hangup semantics
+        settings.c_cc[VMIN]  = 1;
+        settings.c_cc[VTIME] = 0;
 
-    // Set baud rate
-    cfsetispeed(&settings, rate_to_constant(baudrate));
-    cfsetospeed(&settings, rate_to_constant(baudrate));
+        // Set baud rate
+        cfsetispeed(&settings, rate_to_constant(baudrate));
+        cfsetospeed(&settings, rate_to_constant(baudrate));
 
-    // Set raw mode; ignore special processings by special characters as in terminal.
-    // See "Raw Mode" section in man 3 termios.
-    cfmakeraw(&settings);
+        // Set raw mode; ignore special processings by special characters as in terminal.
+        // See "Raw Mode" section in man 3 termios.
+        cfmakeraw(&settings);
 
-    // Apply settings.
-    if (tcsetattr(c->fd, TCSANOW, &settings) != 0){
-        fprintf(stderr, "Failed to apply terminal settings: %d\n", errno);
-        return NULL;
-    }
+        // Apply settings.
+        if (tcsetattr(c->fd, TCSANOW, &settings) != 0){
+            fprintf(stderr, "Failed to apply terminal settings: %d\n", errno);
+            return NULL;
+        }
 
-    // Check if settings are properly applied.
-    if (tcgetattr(c->fd, &settings_verify) != 0){
-        fprintf(stderr, "Failed to get terminal settings: %d\n", errno);
-        return NULL;
-    }
-    if (settings.c_iflag != settings_verify.c_iflag){
-        fprintf(stderr, "Settings c_iflag do not match: %d, %d\n", settings.c_iflag, settings_verify.c_iflag);
-        return NULL;
-    }
-    if (settings.c_oflag != settings_verify.c_oflag){
-        fprintf(stderr, "Settings c_oflag do not match: %d, %d\n", settings.c_oflag, settings_verify.c_oflag);
-        return NULL;
-    }
-    if (settings.c_cflag != settings_verify.c_cflag){
-        fprintf(stderr, "Settings c_cflag do not match: %d, %d\n", settings.c_cflag, settings_verify.c_cflag);
-        return NULL;
-    }
-    if (settings.c_lflag != settings_verify.c_lflag){
-        fprintf(stderr, "Settings c_lflag do not match: %d, %d\n", settings.c_lflag, settings_verify.c_lflag);
-        return NULL;
-    }
-    if (settings.c_cc[VMIN] != settings.c_cc[VMIN]){
-        fprintf(stderr, "c_cc[VMIN] do not match: %d, %d\n", settings.c_cc[VMIN], settings.c_cc[VMIN]);
-        return NULL;
-    }
-    if (settings.c_cc[VTIME] != settings.c_cc[VTIME]){
-        fprintf(stderr, "c_cc[VTIME] do not match: %d, %d\n", settings.c_cc[VTIME], settings.c_cc[VTIME]);
-        return NULL;
-    }
+        // Check if settings are properly applied.
+        if (tcgetattr(c->fd, &settings_verify) != 0){
+            fprintf(stderr, "Failed to get terminal settings: %d\n", errno);
+            return NULL;
+        }
+        if (settings.c_iflag != settings_verify.c_iflag){
+            fprintf(stderr, "Settings c_iflag do not match: %d, %d\n", settings.c_iflag, settings_verify.c_iflag);
+            return NULL;
+        }
+        if (settings.c_oflag != settings_verify.c_oflag){
+            fprintf(stderr, "Settings c_oflag do not match: %d, %d\n", settings.c_oflag, settings_verify.c_oflag);
+            return NULL;
+        }
+        if (settings.c_cflag != settings_verify.c_cflag){
+            fprintf(stderr, "Settings c_cflag do not match: %d, %d\n", settings.c_cflag, settings_verify.c_cflag);
+            return NULL;
+        }
+        if (settings.c_lflag != settings_verify.c_lflag){
+            fprintf(stderr, "Settings c_lflag do not match: %d, %d\n", settings.c_lflag, settings_verify.c_lflag);
+            return NULL;
+        }
+        if (settings.c_cc[VMIN] != settings.c_cc[VMIN]){
+            fprintf(stderr, "c_cc[VMIN] do not match: %d, %d\n", settings.c_cc[VMIN], settings.c_cc[VMIN]);
+            return NULL;
+        }
+        if (settings.c_cc[VTIME] != settings.c_cc[VTIME]){
+            fprintf(stderr, "c_cc[VTIME] do not match: %d, %d\n", settings.c_cc[VTIME], settings.c_cc[VTIME]);
+            return NULL;
+        }
 
-    if(ioctl(c->fd, TIOCGSERIAL, &kernel_serial_settings) == 0)
-    {
-        kernel_serial_settings.flags |= ASYNC_LOW_LATENCY;
-        ioctl(c->fd, TIOCSSERIAL, &kernel_serial_settings);
+        if(ioctl(c->fd, TIOCGSERIAL, &kernel_serial_settings) == 0)
+        {
+            kernel_serial_settings.flags |= ASYNC_LOW_LATENCY;
+            ioctl(c->fd, TIOCSSERIAL, &kernel_serial_settings);
+        }
+        tcflush(c->fd, TCIFLUSH);
+        c->tty_configured = 1;
     }
-    tcflush(c->fd, TCIFLUSH);
 
     pthread_mutex_init(&c->ready_mutex, NULL);
     pthread_cond_init (&c->ready_cond , NULL);
@@ -645,7 +656,8 @@ open_fail:
 
 void firmata_close(struct firmata_conn *c)
 {
-    tcsetattr(c->fd, TCSANOW, &c->orig_attribs);
+    if(c->tty_configured)
+        tcsetattr(c->fd, TCSANOW, &c->orig_attribs);
     close(c->fd);
     pthread_cancel(c->thd);
     pthread_join(c->thd, NULL);
