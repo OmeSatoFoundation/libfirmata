@@ -518,8 +518,8 @@ int firmata_i2c_read_write(struct firmata_conn *c, uint16_t addr, uint8_t comman
     pos++;
     for(i=0;i<data_len;i++)
     {
-        buf[pos++] = buf[i]         & 0x7F;
-        buf[pos++] = (buf[i] >> 7 ) & 0x01;
+        buf[pos++] = data[i]         & 0x7F;
+        buf[pos++] = (data[i] >> 7 ) & 0x01;
     }
     buf[pos++] = END_SYSEX;
     firmata_send_msg(c, buf, pos);
