@@ -487,6 +487,43 @@ static void process_message(struct firmata_conn *c)
                     pthread_mutex_unlock(&c->info_mutex);
                     arg = &ev;
                     break;
+                case STRING_DATA:
+#ifdef FIRMATA_DUMP_MESSAGES
+                    {
+                        // The size of string.
+                        // The actual number of characters is half of msg.size - 3 (START_SYSEX, SYSEX_ID, and END_SYSEX).
+                        // Allocate another byte for the NULL terminator.
+                        const ssize_t recv_str_size = (msg.size - 3) / 2 + 1;
+                        unsigned char * const recv_str = (unsigned char *)malloc(recv_str_size * sizeof(unsigned char));
+                        memset(recv_str, 0, recv_str_size / sizeof(unsigned char));
+                        {
+                            ssize_t i = 0;
+                            for(; i < recv_str_size-1; i++){
+                                unsigned char const c = (msg.data[2*i] & 0x7Fu) | ((msg.data[2*i+1] & 0x01u) << 7);
+                                recv_str[i] = c;
+                            }
+
+                            // Validate if the next byte is 0xF0, END_SYSEX,
+                            // otherwise warn it.
+                            uint8_t c = msg.data[2*i];
+                            if(c != 0xF7){
+                                (void)fprintf(stderr, "Warning: it does not reach the END_SYSEX (0xF0) but: %02X\n", c);
+                            }
+
+                            // Validate the sum of the number of
+                            // characters, START_SYSEX, SYSEX_ID,
+                            // and END_SYSEX, and the size of msg
+                            // matches.
+                            if(3 + (2*i) != msg.size){
+                                (void)fprintf(stderr, "Warning: invalid string data position: %d, expected: %d\n", i, msg.size);
+                            }
+                        }
+
+                        recv_str[recv_str_size-1] = '\0';  // here END_SYSEX comes.
+                        printf("[ STR] %s\n", recv_str);
+                        free(recv_str);
+                    }
+#endif
                 default:
                     break;
             }
